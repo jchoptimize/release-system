@@ -7,6 +7,8 @@
 
 <project name="AkeebaReleaseSystem" description="Akeeba Release System" default="git" >
 	<import file="${phing.dir}/../buildfiles/phing/common.xml" />
+	<property environment="build.env" />
+	<property name="node.bin.dir" value="${user.home}/.nvm/versions/node/v24.19.0/bin" />
 
 	<fileset dir="${dirs.component}" id="component">
 		<include name="api/**"/>
@@ -42,15 +44,21 @@
 	</target>
 
 	<target name="compile-javascript" description="Minify JavaScript files">
-		<exec executable="node"
+		<exec executable="/usr/bin/env"
 		      dir="${dirs.root}/../buildfiles" checkreturn="true" passthru="true">
+			<!-- Terser's launcher resolves node through /usr/bin/env. -->
+			<arg value="PATH=${node.bin.dir}:${build.env.PATH}" />
+			<arg value="${node.bin.dir}/node" />
 			<arg value="build-js.mjs" />
 			<arg value="${dirs.component}/media/js" />
 		</exec>
 	</target>
 
 	<target name="compile-css" description="Compile SCSS to minified CSS">
-		<exec executable="sass" dir="${dirs.component}/media/css" checkreturn="true" passthru="true">
+		<exec executable="/usr/bin/env" dir="${dirs.component}/media/css" checkreturn="true" passthru="true">
+			<!-- The npm Sass launcher also resolves node through /usr/bin/env. -->
+			<arg value="PATH=${node.bin.dir}:${build.env.PATH}" />
+			<arg value="${node.bin.dir}/sass" />
 			<arg value="${dirs.component}/media/css:${dirs.component}/media/css" />
 			<arg value="-s" />
 			<arg value="compressed" />
