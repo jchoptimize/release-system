@@ -1,3 +1,0 @@
-<component name="DependencyValidationManager">
-  <scope name="ES5" pattern="file:component/media/js//*.js&amp;&amp;!file:component/media/js/*.min.js" />
-</component>

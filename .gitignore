@@ -18,7 +18,7 @@
 
 # phpStorm HTTP Client private config file
 http-client.private.env.json
-.idea/laravel-idea.xml
+.idea/
 
 # Tests
 .phpunit.result.cache

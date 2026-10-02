@@ -1,4 +1,6 @@
 <?php die(); ?>
+Akeeba Release System 7.5.2
+================================================================================
 Akeeba Release System 7.5.1
 ================================================================================
 ! PHP and Joomla minimum and maximum version compatibility is now enforced
