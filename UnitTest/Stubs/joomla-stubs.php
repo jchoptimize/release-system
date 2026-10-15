@@ -347,6 +347,41 @@ namespace Joomla\Event {
 
 				return $this;
 			}
+
+			/**
+			 * Propagation, as joomla/event's AbstractEvent has it: an event that refuses something stops
+			 * propagating, and a test of that event has to be able to see that it did.
+			 */
+			protected $stopped = false;
+
+			public function stopPropagation(): void
+			{
+				$this->stopped = true;
+			}
+
+			public function isStopped()
+			{
+				return $this->stopped === true;
+			}
+		}
+	}
+}
+
+namespace Joomla\CMS\Tag {
+	/**
+	 * Empty, so the taggable tables (releases, categories) can be loaded. No test exercises tagging.
+	 */
+	if (!interface_exists(TaggableTableInterface::class, false))
+	{
+		interface TaggableTableInterface
+		{
+		}
+	}
+
+	if (!trait_exists(TaggableTableTrait::class, false))
+	{
+		trait TaggableTableTrait
+		{
 		}
 	}
 }

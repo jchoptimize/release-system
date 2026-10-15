@@ -43,6 +43,18 @@ filter means adding it to the mapper *and* to the Administrator list model. Sort
 `list_direction`) is validated by Joomla against the model's `filter_fields`, so a new sortable column has to be
 declared there too. Document anything you add in `assets/http/api.http`.
 
+## Plugin Events
+
+`onARSBeforeDownload` (`Site\Event\BeforeDownloadEvent`) is raised by `Site\Controller\ItemController::download()`
+once a download has passed the item, release and category access checks and `ItemModel::preDownloadCheck()`, before
+hit counting, logging and sending the file. The `ars` plugin group is imported first; system plugins get it too.
+Its getters are `getItem()`, `getRelease()`, `getCategory()` (the tables) and `getUser()` (the identity the download
+runs as, which is the Download ID's owner when the request carries one). A plugin refuses with
+`refuse(string $message, int $code = 403)`, which stops propagation. ARS then logs the failed attempt (never banning for it, even with `banUnauth` on), logs out a
+Download ID login, and answers with that status (anything outside 400-599 becomes 403) and the message as
+`text/plain`, never with the `no_access_url` redirect: update clients follow redirects and would try to install the
+page. Keep the message short and free of markup.
+
 ## Conventions
 
 - `defined('_JEXEC') || die;` guard in every PHP file — no exceptions.

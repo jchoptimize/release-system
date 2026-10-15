@@ -14,6 +14,7 @@ use Akeeba\Component\ARS\Administrator\Mixin\ControllerEvents;
 use Akeeba\Component\ARS\Administrator\Mixin\RunPluginsTrait;
 use Akeeba\Component\ARS\Administrator\Mixin\TableAssertionTrait;
 use Akeeba\Component\ARS\Administrator\Table\LogTable;
+use Akeeba\Component\ARS\Site\Event\BeforeDownloadEvent;
 use Akeeba\Component\ARS\Site\Mixin\ControllerCRIAccessTrait;
 use Akeeba\Component\ARS\Site\Model\ItemModel;
 use Exception;
@@ -22,6 +23,7 @@ use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Language\Text;
 use Joomla\CMS\MVC\Controller\BaseController;
 use Joomla\CMS\MVC\Factory\MVCFactoryInterface;
+use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Router\Route;
 use Joomla\Input\Input;
 use RuntimeException;
@@ -74,6 +76,18 @@ class ItemController extends BaseController
 
 			// Make sure this is a valid download item (link or pointing to an existing file)
 			$model->preDownloadCheck($item, $category);
+
+			// Let plugins refuse the download
+			$dispatcher = $this->app->getDispatcher();
+			PluginHelper::importPlugin('ars', null, true, $dispatcher);
+
+			$event = new BeforeDownloadEvent($item, $release, $category, $this->app->getIdentity());
+			$dispatcher->dispatch($event->getName(), $event);
+
+			if ($event->isRefused())
+			{
+				$this->respondRefused($event, $model, $item->getId());
+			}
 
 			// Hit the item
 			if ($cParams->get('hitcounting', 0))
@@ -142,13 +156,41 @@ class ItemController extends BaseController
 	}
 
 	/**
-	 * Log a failed download attempt for the given item ID
+	 * Answer a download a plugin refused with its HTTP status and message, as plain text, and stop.
 	 *
-	 * @param   int  $id
+	 * No redirect, unlike the other refusals: update clients follow redirects and would try to install the page.
+	 *
+	 * @param   BeforeDownloadEvent  $event
+	 * @param   ItemModel            $model
+	 * @param   int                  $id
 	 *
 	 * @throws Exception
 	 */
-	private function logFailedDownloadAttempt(int $id): void
+	private function respondRefused(BeforeDownloadEvent $event, ItemModel $model, int $id): void
+	{
+		// A plugin's refusal is a business decision about a paying customer, not an attack: never ban for it
+		$this->logFailedDownloadAttempt($id, false);
+		$model->logoutUser();
+
+		$this->app->setHeader('Status', (string) $event->getRefusalCode(), true);
+		$this->app->setHeader('Content-Type', 'text/plain; charset=utf-8', true);
+		$this->app->setHeader('Cache-Control', 'no-store', true);
+		$this->app->sendHeaders();
+
+		echo $event->getRefusalMessage();
+
+		$this->app->close();
+	}
+
+	/**
+	 * Log a failed download attempt for the given item ID
+	 *
+	 * @param   int   $id
+	 * @param   bool  $ban  Whether the banUnauth option may ban the visitor. Not for a plugin's refusal.
+	 *
+	 * @throws Exception
+	 */
+	private function logFailedDownloadAttempt(int $id, bool $ban = true): void
 	{
 		$model   = $this->getModel();
 		$cParams = ComponentHelper::getParams('com_ars');
@@ -164,7 +206,7 @@ class ItemController extends BaseController
 			);
 		}
 
-		if ($cParams->get('banUnauth', 0))
+		if ($ban && $cParams->get('banUnauth', 0))
 		{
 			$extraMessage = $id ? ('Item : ' . $id) : '';
 

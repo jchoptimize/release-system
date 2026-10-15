@@ -1,6 +1,8 @@
 <?php die(); ?>
 Akeeba Release System 7.5.2
 ================================================================================
++ onARSBeforeDownload plugin event, which can refuse a download with an HTTP status and a plain-text message
+
 Akeeba Release System 7.5.1
 ================================================================================
 ! PHP and Joomla minimum and maximum version compatibility is now enforced
