@@ -31,6 +31,7 @@ use Joomla\Event\Event;
  * @property string $maturity          Release maturity: 'alpha','beta','rc','stable'
  * @property int    $security          Security severity: 0 none, 1 low, 2 medium, 3 high, 4 critical
  * @property string $notes             Release notes, displayed in frontend
+ * @property string $changelog         Plain-text CHANGELOG entries of this version, served as Joomla changelog XML
  * @property string $hits              Hits (times displayed)
  * @property string $created           Created date and time
  * @property int    $created_by        Created by this user
@@ -267,6 +268,15 @@ class ReleaseTable extends AbstractTable implements TaggableTableInterface
 		{
 			$filter      = InputFilter::getInstance([], [], 1, 1);
 			$this->notes = $filter->clean($this->notes);
+		}
+
+		/**
+		 * The changelog is plain text in our CHANGELOG glyph format. Normalise its line endings and drop the blank
+		 * lines around it, so an empty one is stored as an empty string and never advertised in the update stream.
+		 */
+		if ($this->changelog !== null)
+		{
+			$this->changelog = trim(str_replace(["\r\n", "\r"], "\n", (string) $this->changelog));
 		}
 
 		// Set the default access level

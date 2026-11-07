@@ -17,20 +17,11 @@ use Joomla\CMS\Uri\Uri;
 //$showChecksums = $this->showChecksums ?? false;
 $showChecksums = true;
 
-$streamTypeMap = [
-	'components' => 'component',
-	'libraries'  => 'library',
-	'modules'    => 'module',
-	'packages'   => 'package',
-	'plugins'    => 'plugin',
-	'files'      => 'file',
-	'templates'  => 'template',
-];
-
 $app = Factory::getApplication();
 $params         = $app->getParams('com_ars');
 $minifyXML      = $params->get('minify_xml', 1) == 1;
 $liarMode       = $params->get('liar_mode', 1) == 1;
+$changelogUrl   = $params->get('changelog_url', 1) == 1;
 
 $updateStream = new SimpleXMLElement("<updates />");
 
@@ -71,7 +62,7 @@ foreach ($this->items as $item)
 			$update->addChild('description', $item->name);
 		}
 		$update->addChild('element', $item->element);
-		$update->addChild('type', $streamTypeMap[$item->type]);
+		$update->addChild('type', $this->getJoomlaExtensionType($item->type));
 		$update->addChild('version', $item->version);
 
 		$infoUrl = $update->addChild('infourl', Route::_(
@@ -79,6 +70,20 @@ foreach ($this->items as $item)
 			true, Route::TLS_IGNORE, true
 		));
 		$infoUrl->addAttribute('title', sprintf('%s %s', $item->cat_title, $item->version));
+
+		/**
+		 * Joomla 4.0 and later show a Changelog button for an update which has a changelog URL.
+		 *
+		 * Only advertise it when the release has a changelog. Joomla shows the button whenever the URL is present,
+		 * and opens an empty modal if the changelog has no entry for this version. SimpleXML doesn't escape the
+		 * ampersands in the value for us, so we do.
+		 */
+		if ($changelogUrl && trim($item->changelog ?? '') !== '')
+		{
+			$update->addChild(
+				'changelogurl', htmlspecialchars($this->getChangelogUrl((int) $item->id), ENT_XML1 | ENT_QUOTES, 'UTF-8')
+			);
+		}
 
 		$downloads = $update->addChild('downloads');
 

@@ -955,6 +955,12 @@ $releaseSpecs = [
 	'unpublishedCatStable'    => ['unpublished', '5.0.0', 'stable', 0, 1, 1, 240],
 ];
 
+// Only `publicSecurity` has a changelog, so the update stream must advertise <changelogurl> for its
+// update and for no other. The entities and the umlaut are what Joomla 6.2 splits a plain-text item at.
+$releaseChangelogs = [
+	'publicSecurity' => "! SECURITY: E2E security fix\n~ Fixed <select> & Müller",
+];
+
 $releases = [];
 
 foreach ($releaseSpecs as $key => [$catKey, $version, $maturity, $security, $access, $published, $agoMinutes])
@@ -971,6 +977,7 @@ foreach ($releaseSpecs as $key => [$catKey, $version, $maturity, $security, $acc
 			'maturity'          => $maturity,
 			'security'          => $security,
 			'notes'             => '<p>E2E release notes for ' . $key . '.</p>',
+			'changelog'         => $releaseChangelogs[$key] ?? '',
 			'hits'              => 0,
 			'created'           => $created,
 			'created_by'        => $users['manager'],

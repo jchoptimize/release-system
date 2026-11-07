@@ -43,6 +43,18 @@ filter means adding it to the mapper *and* to the Administrator list model. Sort
 `list_direction`) is validated by Joomla against the model's `filter_fields`, so a new sortable column has to be
 declared there too. Document anything you add in `assets/http/api.http`.
 
+## Joomla changelogs
+
+A release's `changelog` column holds the plain-text CHANGELOG section of that version. `stream.php` adds
+`<changelogurl>` to an update only when it is non-empty, pointing to the non-SEF
+`index.php?option=com_ars&view=update&task=changelog&format=xml&id=<stream>`, which `Common::buildChangelogXml()`
+renders. Items are HTML-escaped inside CDATA because Joomla echoes them verbatim. The glyphs (`!` security, `#` fix,
+`$` language, `+` addition, `~` change, `-` remove, `^` note) live in three places that must agree:
+`Administrator\Helper\Changelog`, releasemaker's `Configuration\Section\Release` and buildfiles'
+`ChangelogCheckTask`. Release Maker's `changelog` update format mirrors this endpoint to a static file and, with
+`changelog_url`, rewrites each `<changelogurl>` in the mirrored stream with a regex, so keep the element free of
+attributes and child nodes.
+
 ## Plugin Events
 
 `onARSBeforeDownload` (`Site\Event\BeforeDownloadEvent`) is raised by `Site\Controller\ItemController::download()`

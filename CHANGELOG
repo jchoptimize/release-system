@@ -2,6 +2,9 @@
 Akeeba Release System 7.5.2
 ================================================================================
 + onARSBeforeDownload plugin event, which can refuse a download with an HTTP status and a plain-text message
++ Joomla changelogs: a plain-text Changelog per release, served as Joomla changelog XML and linked from XML update streams with <changelogurl>
++ BleedingEdge releases store the CHANGELOG section they are built from as their Changelog
+~ BleedingEdge release notes: ! is now a security entry, ^ a note, and $ a language change
 
 Akeeba Release System 7.5.1
 ================================================================================

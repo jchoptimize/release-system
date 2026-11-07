@@ -9,6 +9,7 @@ namespace Akeeba\Component\ARS\Site\Model;
 
 defined('_JEXEC') or die;
 
+use Akeeba\Component\ARS\Administrator\Helper\Changelog;
 use Akeeba\Component\ARS\Administrator\Helper\DbQuery;
 use Akeeba\Component\ARS\Administrator\Mixin\RunPluginsTrait;
 use Akeeba\Component\ARS\Administrator\Table\CategoryTable;
@@ -513,28 +514,21 @@ final class BleedingedgeModel extends BaseDatabaseModel
 	}
 
 	/**
-	 * Extract the latest version's changelog and render it as HTML release notes.
+	 * Read the newest version's entries from the CHANGELOG file of a BleedingEdge release.
 	 *
-	 * Reads a CHANGELOG file from the release's directory and returns an HTML <ul> listing the
-	 * entries of the FIRST (topmost) section — the convention in Akeeba projects where the newest
-	 * version appears first. Each entry line starts with one of the glyphs '+', '-', '~', '!', '#',
-	 * indicating addition, removal, change, miscellaneous, and bug fix respectively; each rendered
-	 * <li> gets a matching CSS class.
+	 * Looks for a CHANGELOG file in the release's directory and returns the entry lines of its FIRST (topmost)
+	 * section, the newest version. See {@see Changelog} for the format.
 	 *
-	 * Section headings are any line immediately followed by a line of '=' characters, e.g.:
-	 *     MyApp 1.2.3
-	 *     ================================
-	 *
-	 * Controlled by the `begenchangelog` component parameter; returns '' if disabled, if no
-	 * CHANGELOG file is found, or if the file contains no recognisable section.
+	 * Controlled by the `begenchangelog` component parameter; returns '' if disabled, if no CHANGELOG file is
+	 * found, or if the file contains no recognisable section.
 	 *
 	 * @param   CategoryTable  $category
 	 * @param   string         $version   The release's version (the subdirectory name).
 	 *
-	 * @return  string  HTML for the release notes, or an empty string.
-	 * @since   7.5.0
+	 * @return  string  The plain-text changelog entries, or an empty string.
+	 * @since   7.5.2
 	 */
-	private function extractChangelog(CategoryTable $category, string $version): string
+	private function readChangelogSection(CategoryTable $category, string $version): string
 	{
 		$cParams = ComponentHelper::getParams($this->option);
 
@@ -576,60 +570,38 @@ final class BleedingedgeModel extends BaseDatabaseModel
 			return '';
 		}
 
-		$lines     = explode("\n", str_replace(["\r\n", "\r"], "\n", $content));
-		$lineCount = count($lines);
-		$inSection = false;
-		$collected = [];
+		return Changelog::latestSection($content)['body'] ?? '';
+	}
 
-		for ($i = 0; $i < $lineCount; $i++)
-		{
-			$isHeading = ($i + 1 < $lineCount) && preg_match('/^=+\s*$/', $lines[$i + 1])
-				&& trim($lines[$i]) !== '';
-
-			if ($isHeading)
-			{
-				// If we're already collecting, this marks the next section — stop.
-				if ($inSection)
-				{
-					break;
-				}
-
-				// Otherwise, start collecting at the first recognised section (= the latest version).
-				$inSection = true;
-				$i++; // skip the '===' underline
-
-				continue;
-			}
-
-			if ($inSection)
-			{
-				$collected[] = $lines[$i];
-			}
-		}
-
-		// Trim leading/trailing blank lines
-		while (!empty($collected) && trim($collected[0]) === '')
-		{
-			array_shift($collected);
-		}
-
-		while (!empty($collected) && trim(end($collected)) === '')
-		{
-			array_pop($collected);
-		}
-
-		if (empty($collected))
+	/**
+	 * Render a version's changelog entries as HTML release notes.
+	 *
+	 * Each entry line starts with a glyph (see {@see Changelog::GLYPHS}); each rendered <li> gets a matching icon
+	 * and colour.
+	 *
+	 * @param   string  $section  The plain-text changelog entries, from readChangelogSection().
+	 *
+	 * @return  string  HTML for the release notes, or an empty string.
+	 * @since   7.5.0
+	 */
+	private function renderChangelogHtml(string $section): string
+	{
+		if (trim($section) === '')
 		{
 			return '';
 		}
 
+		$collected = explode("\n", $section);
+
 		// Glyph → [Font Awesome 6 icon class, Bootstrap 5 text-color utility]
 		$glyphMap = [
-			'+' => ['fa-solid fa-circle-plus', 'text-success'],
-			'-' => ['fa-solid fa-circle-minus', 'text-danger'],
-			'~' => ['fa-solid fa-pen-to-square', 'text-info'],
-			'!' => ['fa-solid fa-triangle-exclamation', 'text-warning'],
+			'!' => ['fa-solid fa-shield-halved', 'text-danger'],
 			'#' => ['fa-solid fa-bug', 'text-secondary'],
+			'$' => ['fa-solid fa-language', 'text-primary'],
+			'+' => ['fa-solid fa-circle-plus', 'text-success'],
+			'~' => ['fa-solid fa-pen-to-square', 'text-info'],
+			'-' => ['fa-solid fa-circle-minus', 'text-danger'],
+			'^' => ['fa-solid fa-circle-info', 'text-body'],
 		];
 
 		// Severity tag for bug-fix entries → Bootstrap 5 text-color utility
@@ -654,7 +626,7 @@ final class BleedingedgeModel extends BaseDatabaseModel
 			$color = 'text-body';
 			$text  = $line;
 
-			if (preg_match('/^([+\-~!#])\s+(.*)$/', $line, $m))
+			if (preg_match('/^([!#$+~\-^])\s+(.*)$/', $line, $m))
 			{
 				[$icon, $color] = $glyphMap[$m[1]];
 				$text           = $m[2];
@@ -882,7 +854,8 @@ final class BleedingedgeModel extends BaseDatabaseModel
 		$db = $this->getDatabase();
 
 		$referenceDate = Date::getInstance($infoArray['modified'], 'UTC');
-		$notes         = $this->extractChangelog($category, $version);
+		$changelog     = $this->readChangelogSection($category, $version);
+		$notes         = $this->renderChangelogHtml($changelog);
 
 		try
 		{
@@ -894,6 +867,7 @@ final class BleedingedgeModel extends BaseDatabaseModel
 					'version'           => $version,
 					'maturity'          => 'alpha',
 					'notes'             => $notes,
+					'changelog'         => $changelog,
 					'hits'              => 0,
 					'created'           => $referenceDate->toSql($db),
 					'created_by'        => 0,
@@ -976,7 +950,8 @@ final class BleedingedgeModel extends BaseDatabaseModel
 		$releaseTable->setUpdateModified(false);
 
 		// Regenerate release notes from the CHANGELOG file, if present and enabled.
-		$notes    = $this->extractChangelog($category, $version);
+		$changelog   = $this->readChangelogSection($category, $version);
+		$notes       = $this->renderChangelogHtml($changelog);
 		$savePayload = [
 			'modified'         => Date::getInstance($infoArray['modified'], 'UTC')->toSql($db),
 			'modified_by'      => 0,
@@ -988,7 +963,8 @@ final class BleedingedgeModel extends BaseDatabaseModel
 
 		if ($notes !== '')
 		{
-			$savePayload['notes'] = $notes;
+			$savePayload['notes']     = $notes;
+			$savePayload['changelog'] = $changelog;
 		}
 
 		try

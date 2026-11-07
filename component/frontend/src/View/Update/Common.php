@@ -7,6 +7,7 @@
 
 namespace Akeeba\Component\ARS\Site\View\Update;
 
+use Akeeba\Component\ARS\Administrator\Helper\Changelog;
 use Akeeba\Component\ARS\Site\Model\ItemModel;
 use Akeeba\Component\Compatibility\Administrator\Extension\CompatibiltyComponent;
 use Joomla\CMS\Application\SiteApplication;
@@ -48,6 +49,111 @@ trait Common
 		{
 			$this->dlidRequest = '&dlid=' . $dlid;
 		}
+	}
+
+	/**
+	 * Translate an update stream's type to the Joomla extension type, e.g. 'components' to 'component'.
+	 *
+	 * @param   string|null  $streamType  The `type` column of the update stream.
+	 *
+	 * @return  string
+	 * @since   7.5.2
+	 */
+	public function getJoomlaExtensionType(?string $streamType): string
+	{
+		$map = [
+			'components' => 'component',
+			'libraries'  => 'library',
+			'modules'    => 'module',
+			'packages'   => 'package',
+			'plugins'    => 'plugin',
+			'files'      => 'file',
+			'templates'  => 'template',
+		];
+
+		return $map[$streamType ?? ''] ?? (string) $streamType;
+	}
+
+	/**
+	 * Return the absolute URL of an update stream's changelog XML.
+	 *
+	 * It is deliberately a non-SEF URL. Joomla answers it the same way whatever the site's SEF settings and menu
+	 * structure, so it is also safe to hard-code in an extension's installation manifest. The return value is not
+	 * XML-escaped.
+	 *
+	 * @param   int  $streamId  The update stream ID.
+	 *
+	 * @return  string
+	 * @since   7.5.2
+	 */
+	public function getChangelogUrl(int $streamId): string
+	{
+		return rtrim(Uri::root(), '/') . '/index.php?option=com_ars&view=update&task=changelog&format=xml&id='
+			. $streamId;
+	}
+
+	/**
+	 * Build the Joomla changelog XML document of an update stream.
+	 *
+	 * Every release in the stream with a non-empty changelog becomes one `<changelog>` entry. Joomla picks the
+	 * entry whose `<version>` equals the version on offer, so the version comes from the same release record as
+	 * the update stream's `<version>`, and the two can't drift apart.
+	 *
+	 * Each entry is in a CDATA section. Joomla prints item content without escaping it, so the text is
+	 * HTML-escaped inside the CDATA: `<select>` displays as written instead of becoming markup, and it can't inject
+	 * HTML into the admin's browser. CDATA also stops Joomla 6.2 from splitting an item into several bullets at
+	 * every entity and non-ASCII character (joomla-cms issue 48392).
+	 *
+	 * @param   object[]  $items  The update stream rows, as returned by UpdateModel::getItems().
+	 *
+	 * @return  string  The XML document. A stream without changelogs gives an empty `<changelogs/>` root.
+	 * @since   7.5.2
+	 */
+	public function buildChangelogXml(array $items): string
+	{
+		$dom  = new \DOMDocument('1.0', 'UTF-8');
+		$root = $dom->appendChild($dom->createElement('changelogs'));
+		$seen = [];
+
+		foreach ($items as $item)
+		{
+			$releaseId = (int) ($item->release_id ?? 0);
+
+			// A release with several items in this stream (e.g. one per environment) must appear once.
+			if (isset($seen[$releaseId]))
+			{
+				continue;
+			}
+
+			$seen[$releaseId] = true;
+			$groups           = Changelog::parse($item->changelog ?? null);
+
+			if (empty($groups) || empty($item->version))
+			{
+				continue;
+			}
+
+			$changelog = $root->appendChild($dom->createElement('changelog'));
+			$changelog->appendChild($dom->createElement('element'))
+				->appendChild($dom->createTextNode((string) ($item->element ?? '')));
+			$changelog->appendChild($dom->createElement('type'))
+				->appendChild($dom->createTextNode($this->getJoomlaExtensionType($item->type ?? null)));
+			$changelog->appendChild($dom->createElement('version'))
+				->appendChild($dom->createTextNode((string) $item->version));
+
+			foreach ($groups as $group => $entries)
+			{
+				$groupNode = $changelog->appendChild($dom->createElement($group));
+
+				foreach ($entries as $entry)
+				{
+					$groupNode->appendChild($dom->createElement('item'))
+						->appendChild($dom->createCDATASection(htmlspecialchars($entry, ENT_NOQUOTES, 'UTF-8')));
+				}
+			}
+		}
+
+		return $dom->saveXML();
 	}
 
 	/**

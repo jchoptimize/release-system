@@ -41,7 +41,7 @@ class XmlView extends HtmlView
 	{
 		$task = $this->getModel()->getState('task', 'all');
 
-		if (!in_array($task, ['all', 'category', 'stream', 'jed']))
+		if (!in_array($task, ['all', 'category', 'stream', 'jed', 'changelog']))
 		{
 			$this->doTask = 'all';
 		}
@@ -102,6 +102,11 @@ class XmlView extends HtmlView
 		$this->commonSetup();
 
 		$this->setLayout('category');
+	}
+
+	protected function onBeforeChangelog(): void
+	{
+		$this->setLayout('changelog');
 	}
 
 	protected function onBeforeStream(): void

@@ -137,6 +137,38 @@ class UpdateController extends BaseController
 		$this->display(true, $registeredURLParams);
 	}
 
+	/**
+	 * Show the Joomla changelog XML of an update stream.
+	 *
+	 * The XML update stream points each update's `<changelogurl>` here. It always answers HTTP 200, even for an
+	 * unknown or unpublished stream: Joomla logs anything else as a warning and shows an empty modal anyway.
+	 *
+	 * @throws \Exception
+	 * @since  7.5.2
+	 */
+	public function changelog(): void
+	{
+		$id = $this->input->getInt('id', 0);
+
+		// Define the Id for caching as if it were received as a safeuri param
+		$this->app->getInput()->set('id', $id);
+
+		/** @var UpdateModel $model */
+		$model       = $this->getModel();
+		$view        = $this->getView();
+		$view->items = $model->getItems($id) ?? [];
+
+		$registeredURLParams = [
+			'option' => 'CMD',
+			'view'   => 'CMD',
+			'task'   => 'CMD',
+			'format' => 'CMD',
+			'id'     => 'INT',
+		];
+
+		$this->display(true, $registeredURLParams);
+	}
+
 	public function json(): void
 	{
 		$this->stream();
@@ -304,7 +336,7 @@ class UpdateController extends BaseController
 				break;
 
 			default:
-				if (!in_array($task, ['all', 'category', 'stream', 'jed']))
+				if (!in_array($task, ['all', 'category', 'stream', 'jed', 'changelog']))
 				{
 					$task = 'all';
 				}

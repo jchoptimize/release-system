@@ -121,6 +121,10 @@ X-Joomla-Token: {{token}}
 User-Agent: AkeebaReleaseMaker/2.0
 
 ### Releases: create one
+# `changelog` is plain text, one CHANGELOG entry per line, each starting with a glyph:
+# ! security, # fix, $ language, + addition, ~ change, - remove, ^ note. A non-empty changelog makes the
+# release's updates carry <changelogurl>, pointing to
+# {{host}}/index.php?option=com_ars&view=update&task=changelog&format=xml&id=<update stream id>.
 POST {{host}}/api/index.php/v1/ars/releases
 Accept: application/vnd.api+json
 X-Joomla-Token: {{token}}
@@ -133,6 +137,7 @@ Content-Type: application/json
   "alias": "3-0-0",
   "maturity": "stable",
   "notes": "<p>Release notes go here.</p>",
+  "changelog": "! SECURITY: Fixed an information disclosure\n+ Added a thing\n# [LOW] Fixed a thing",
   "access": 1,
   "published": 1,
   "language": "*"
@@ -151,6 +156,12 @@ Content-Type: application/json
   "notes": "Once upon a time, in a galaxy far, far away someone created a random UUID4: {{$uuid}}",
   "published": 1
 }
+
+### Update streams: Joomla changelog XML of a stream
+# Public, like the XML update stream itself. Always HTTP 200; an unknown stream gives an empty <changelogs/>.
+GET {{host}}/index.php?option=com_ars&view=update&task=changelog&format=xml&id=1
+Accept: application/xml
+User-Agent: AkeebaReleaseMaker/2.0
 
 ### Releases: delete one
 DELETE {{host}}/api/index.php/v1/ars/releases/81

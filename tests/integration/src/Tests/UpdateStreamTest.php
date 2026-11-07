@@ -604,6 +604,158 @@ class UpdateStreamTest extends AbstractE2ETestCase
 	 * @return  string
 	 * @since   7.5.0
 	 */
+	/**
+	 * Only the update of a release with a changelog carries `<changelogurl>`, and it points to the stream's
+	 * changelog XML.
+	 *
+	 * Joomla shows the Changelog button whenever the element is present, and an empty modal when the changelog
+	 * has no entry for the version, so a release without a changelog must not advertise one.
+	 *
+	 * @return  void
+	 * @since   7.5.2
+	 */
+	public function testChangelogUrlIsEmittedOnlyForTheReleaseWithAChangelog(): void
+	{
+		$updates = $this->streamUpdates('main');
+		$urls    = [];
+
+		foreach ($updates as $update)
+		{
+			$nodes = $update->getElementsByTagName('changelogurl');
+
+			if ($nodes->length === 0)
+			{
+				continue;
+			}
+
+			$version          = $update->getElementsByTagName('version')->item(0)->textContent;
+			$urls[$version][] = $nodes->item(0)->textContent;
+		}
+
+		$this->assertSame(
+			['1.1.0'],
+			array_map('strval', array_keys($urls)),
+			'Only the publicSecurity release (1.1.0) has a changelog, so only its updates may carry <changelogurl>.'
+		);
+
+		foreach ($urls['1.1.0'] as $url)
+		{
+			// Joomla does not trim the URL (joomla-cms issue 47219).
+			$this->assertSame(trim($url), $url, 'The <changelogurl> has whitespace around it.');
+			$this->assertMatchesRegularExpression('#^https?://#', $url, 'The <changelogurl> is not an absolute URL.');
+			$this->assertStringEndsWith(
+				'index.php?option=com_ars&view=update&task=changelog&format=xml&id='
+				. static::$fixtures->updateStreamId('main'),
+				$url
+			);
+		}
+	}
+
+	/**
+	 * The changelog XML has an entry whose `<version>` is exactly the version of the update that links to it.
+	 *
+	 * Joomla picks the entry with version_compare(==), so '1.1' and '1.1.0' would not match. Items arrive one per
+	 * bullet, as Joomla's expat callback reads them, with HTML-escaped text because Joomla prints them verbatim.
+	 *
+	 * @return  void
+	 * @since   7.5.2
+	 */
+	public function testChangelogEntryMatchesTheUpdateVersionExactly(): void
+	{
+		$urls = [];
+
+		foreach ($this->streamUpdates('main') as $update)
+		{
+			$nodes = $update->getElementsByTagName('changelogurl');
+
+			if ($nodes->length > 0)
+			{
+				$urls[] = $nodes->item(0)->textContent;
+			}
+		}
+
+		$this->assertNotEmpty($urls, 'The main update stream carries no <changelogurl>.');
+
+		// Request it relative to the site root; the host the site reports may not be the one the tests reach.
+		$url      = substr($urls[0], strpos($urls[0], 'index.php'));
+		$response = $this->guest()->get($url);
+
+		$this->assertStatus(200, $response, 'The changelog XML did not render.');
+		$this->assertStringContainsString('xml', $response->getHeader('content-type') ?? '');
+
+		$dom = new DOMDocument();
+		$this->assertTrue($dom->loadXML($response->body), 'The changelog response body is not well-formed XML.');
+		$this->assertSame('changelogs', $dom->documentElement->nodeName);
+
+		$entries = [];
+
+		foreach ($dom->getElementsByTagName('changelog') as $changelog)
+		{
+			/** @var \DOMElement $changelog */
+			$entries[$changelog->getElementsByTagName('version')->item(0)->textContent] = $changelog;
+		}
+
+		$this->assertSame(['1.1.0'], array_map('strval', array_keys($entries)));
+
+		$entry = $entries['1.1.0'];
+
+		$this->assertSame('com_e2e', $entry->getElementsByTagName('element')->item(0)->textContent);
+		$this->assertSame('component', $entry->getElementsByTagName('type')->item(0)->textContent);
+		$this->assertSame(
+			'SECURITY: E2E security fix',
+			$entry->getElementsByTagName('security')->item(0)->getElementsByTagName('item')->item(0)->textContent
+		);
+		$this->assertSame(
+			'Fixed &lt;select&gt; &amp; Müller',
+			$entry->getElementsByTagName('change')->item(0)->getElementsByTagName('item')->item(0)->textContent
+		);
+	}
+
+	/**
+	 * An unknown update stream still answers HTTP 200, with an empty changelog.
+	 *
+	 * Joomla logs any other status as a warning and opens an empty modal anyway.
+	 *
+	 * @return  void
+	 * @since   7.5.2
+	 */
+	public function testChangelogOfAnUnknownStreamIsAnEmptyDocument(): void
+	{
+		$response = $this->guest()->get($this->siteUrl([
+			'view'   => 'update',
+			'task'   => 'changelog',
+			'format' => 'xml',
+			'id'     => 999999,
+		]));
+
+		$this->assertStatus(200, $response, 'The changelog of an unknown stream did not render.');
+
+		$dom = new DOMDocument();
+		$this->assertTrue($dom->loadXML($response->body), 'The changelog response body is not well-formed XML.');
+		$this->assertSame('changelogs', $dom->documentElement->nodeName);
+		$this->assertSame(0, $dom->getElementsByTagName('changelog')->length);
+	}
+
+	/**
+	 * Fetch an update stream and return its `<update>` elements.
+	 *
+	 * @param   string  $streamKey  The update stream name from the fixture manifest.
+	 *
+	 * @return  \DOMNodeList
+	 * @since   7.5.2
+	 */
+	private function streamUpdates(string $streamKey): \DOMNodeList
+	{
+		$response = $this->guest()->get($this->streamUrl($streamKey));
+
+		$this->assertStatus(200, $response, 'The update stream did not render.');
+
+		$dom = new DOMDocument();
+		$this->assertTrue($dom->loadXML($response->body), "The update stream's response body is not well-formed XML.");
+
+		return $dom->getElementsByTagName('update');
+	}
+
 	private function streamUrl(string $streamKey, array $extra = []): string
 	{
 		return $this->siteUrl(array_merge(
