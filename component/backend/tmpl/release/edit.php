@@ -62,11 +62,6 @@ $customFieldSets = array_diff(array_keys($this->form->getFieldsets()), $knownFie
 					]); ?>
 				</div>
 			</div>
-			<div class="card card-block mb-2">
-				<div class="card-body">
-					<?= $this->form->getField('changelog')->renderField(); ?>
-				</div>
-			</div>
 		</div>
 	</div>
 

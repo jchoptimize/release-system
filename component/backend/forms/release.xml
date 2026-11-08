@@ -82,13 +82,13 @@
                 filter="Joomla\CMS\Component\ComponentHelper::filterText"
         />
 
+        <!--
+            Not shown in the edit page; Release Maker sets it through the JSON:API. It has to stay declared here: the
+            API saves through this form, and Form::filter() drops data for fields the form doesn't declare.
+        -->
         <field
                 name="changelog"
                 type="textarea"
-                label="COM_ARS_RELEASE_FIELD_CHANGELOG_LABEL"
-                description="COM_ARS_RELEASE_FIELD_CHANGELOG_DESC"
-                rows="12"
-                class="font-monospace"
                 filter="raw"
         />
 
